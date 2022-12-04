@@ -8,7 +8,7 @@
  */
 
 // version code in format yymmddb (b = daily build)
-#define VERSION 2211020
+#define VERSION 2212030
 
 //uncomment this if you have a "my_config.h" file you'd like to use
 //#define WLED_USE_MY_CONFIG
@@ -95,6 +95,10 @@
   #include "my_config.h"
 #endif
 
+#ifdef WLED_DEBUG_HOST
+#include "net_debug.h"
+#endif
+
 #include <ESPAsyncWebServer.h>
 #ifdef WLED_ADD_EEPROM_SUPPORT
   #include <EEPROM.h>
@@ -171,6 +175,19 @@ using PSRAMDynamicJsonDocument = BasicJsonDocument<PSRAM_Allocator>;
   #define CLIENT_PASS ""
 #endif
 
+#if defined(WLED_AP_PASS) && !defined(WLED_AP_SSID)
+  #error WLED_AP_PASS is defined but WLED_AP_SSID is still the default. \
+         Please change WLED_AP_SSID to something unique.
+#endif
+
+#ifndef WLED_AP_SSID
+  #define WLED_AP_SSID DEFAULT_AP_SSID
+#endif
+
+#ifndef WLED_AP_PASS
+  #define WLED_AP_PASS DEFAULT_AP_PASS
+#endif
+
 #ifndef SPIFFS_EDITOR_AIRCOOOKIE
   #error You are not using the Aircoookie fork of the ESPAsyncWebserver library.\
   Using upstream puts your WiFi password at risk of being served by the filesystem.\
@@ -225,7 +242,7 @@ WLED_GLOBAL char versionString[] _INIT(TOSTRING(WLED_VERSION));
 #define WLED_CODENAME "Hoshi"
 
 // AP and OTA default passwords (for maximum security change them!)
-WLED_GLOBAL char apPass[65]  _INIT(DEFAULT_AP_PASS);
+WLED_GLOBAL char apPass[65]  _INIT(WLED_AP_PASS);
 WLED_GLOBAL char otaPass[33] _INIT(DEFAULT_OTA_PASS);
 
 // Hardware and pin config
@@ -499,6 +516,7 @@ WLED_GLOBAL bool buttonPressedBefore[WLED_MAX_BUTTONS]        _INIT({false});
 WLED_GLOBAL bool buttonLongPressed[WLED_MAX_BUTTONS]          _INIT({false});
 WLED_GLOBAL unsigned long buttonPressedTime[WLED_MAX_BUTTONS] _INIT({0});
 WLED_GLOBAL unsigned long buttonWaitTime[WLED_MAX_BUTTONS]    _INIT({0});
+WLED_GLOBAL bool disablePullUp                                _INIT(false);
 WLED_GLOBAL byte touchThreshold                               _INIT(TOUCH_THRESHOLD);
 
 // notifications
@@ -669,13 +687,28 @@ WLED_GLOBAL StaticJsonDocument<JSON_BUFFER_SIZE> doc;
 WLED_GLOBAL volatile uint8_t jsonBufferLock _INIT(0);
 
 // enable additional debug output
+#if defined(WLED_DEBUG_HOST)
+  // On the host side, use netcat to receive the log statements: nc -l 7868 -u
+  // use -D WLED_DEBUG_HOST='"192.168.xxx.xxx"' or FQDN within quotes
+  #define DEBUGOUT NetDebug
+  WLED_GLOBAL bool netDebugEnabled _INIT(true);
+  WLED_GLOBAL char netDebugPrintHost[33] _INIT(WLED_DEBUG_HOST);
+  #if defined(WLED_DEBUG_NET_PORT)
+  WLED_GLOBAL int netDebugPrintPort _INIT(WLED_DEBUG_PORT);
+  #else
+  WLED_GLOBAL int netDebugPrintPort _INIT(7868);
+  #endif
+#else
+  #define DEBUGOUT Serial
+#endif
+
 #ifdef WLED_DEBUG
   #ifndef ESP8266
   #include <rom/rtc.h>
   #endif
-  #define DEBUG_PRINT(x) Serial.print(x)
-  #define DEBUG_PRINTLN(x) Serial.println(x)
-  #define DEBUG_PRINTF(x...) Serial.printf(x)
+  #define DEBUG_PRINT(x) DEBUGOUT.print(x)
+  #define DEBUG_PRINTLN(x) DEBUGOUT.println(x)
+  #define DEBUG_PRINTF(x...) DEBUGOUT.printf(x)
 #else
   #define DEBUG_PRINT(x)
   #define DEBUG_PRINTLN(x)
@@ -683,9 +716,9 @@ WLED_GLOBAL volatile uint8_t jsonBufferLock _INIT(0);
 #endif
 
 #ifdef WLED_DEBUG_FS
-  #define DEBUGFS_PRINT(x) Serial.print(x)
-  #define DEBUGFS_PRINTLN(x) Serial.println(x)
-  #define DEBUGFS_PRINTF(x...) Serial.printf(x)
+  #define DEBUGFS_PRINT(x) DEBUGOUT.print(x)
+  #define DEBUGFS_PRINTLN(x) DEBUGOUT.println(x)
+  #define DEBUGFS_PRINTF(x...) DEBUGOUT.printf(x)
 #else
   #define DEBUGFS_PRINT(x)
   #define DEBUGFS_PRINTLN(x)
@@ -707,6 +740,23 @@ WLED_GLOBAL volatile uint8_t jsonBufferLock _INIT(0);
 #endif
 #define WLED_WIFI_CONFIGURED (strlen(clientSSID) >= 1 && strcmp(clientSSID, DEFAULT_CLIENT_SSID) != 0)
 #define WLED_MQTT_CONNECTED (mqtt != nullptr && mqtt->connected())
+
+#ifndef WLED_AP_SSID_UNIQUE
+  #define WLED_SET_AP_SSID() do { \
+    strcpy_P(apSSID, PSTR(WLED_AP_SSID)); \
+  } while(0)
+#else
+  #define WLED_SET_AP_SSID() do { \
+    strcpy_P(apSSID, PSTR(WLED_AP_SSID)); \
+    snprintf_P(\
+      apSSID+strlen(WLED_AP_SSID), \
+      sizeof(apSSID)-strlen(WLED_AP_SSID), \
+      PSTR("-%*s"), \
+      6, \
+      escapedMac.c_str() + 6\
+    ); \
+  } while(0)
+#endif
 
 //macro to convert F to const
 #define SET_F(x)  (const char*)F(x)

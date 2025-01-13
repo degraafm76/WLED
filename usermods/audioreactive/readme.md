@@ -1,11 +1,11 @@
 # Audioreactive usermod
 
-This usermod allows controlling LEDs using audio input. Audio input can be either microphone or analog-in (AUX) using appropriate adapter.
-Supported microphones range from cheap analog (MAX4466, MAX9814, ...) to high quality digital (INMP441, ICS-43434, ...) and dgital Line-In.
+Enables controlling LEDs via audio input. Audio source can be a microphone or analog-in (AUX) using an appropriate adapter.
+Supported microphones range from analog (MAX4466, MAX9814, ...) to digital (INMP441, ICS-43434, ...).
 
-The usermod does audio processing and provides data structure that specially written effect can use.
+Does audio processing and provides data structure that specially written effects can use.
 
-The usermod **does not** provide effects or draws anything to LED strip/matrix.
+**does not** provide effects or draw anything to an LED strip/matrix.
 
 ## Additional Documentation
 This usermod is an evolution of [SR-WLED](https://github.com/atuline/WLED), and a lot of documentation and information can be found in the [SR-WLED wiki](https://github.com/atuline/WLED/wiki):
@@ -19,7 +19,7 @@ This usermod is an evolution of [SR-WLED](https://github.com/atuline/WLED), and 
 ## Supported MCUs
 This audioreactive usermod works best on "classic ESP32" (dual core), and on ESP32-S3 which also has dual core and hardware floating point support. 
 
-It will compile succesfully for ESP32-S2 and ESP32-C3, however might not work well, as other WLED functions will become slow. Audio processing requires a lot of computing power, which can be problematic on smaller MCUs like -S2 and -C3. 
+It will compile successfully for ESP32-S2 and ESP32-C3, however might not work well, as other WLED functions will become slow. Audio processing requires a lot of computing power, which can be problematic on smaller MCUs like -S2 and -C3. 
 
 Analog audio is only possible on "classic" ESP32, but not on other MCUs like ESP32-S3.
 
@@ -27,24 +27,17 @@ Currently ESP8266 is not supported, due to low speed and small RAM of this chip.
 There are however plans to create a lightweight audioreactive for the 8266, with reduced features.
 ## Installation 
 
-### using customised _arduinoFFT_ library for use with this usermod
-Add `-D USERMOD_AUDIOREACTIVE` to your PlatformIO environment `build_flags`, as well as `https://github.com/blazoncek/arduinoFFT.git` to your `lib_deps`.
-If you are not using PlatformIO (which you should) try adding `#define USERMOD_AUDIOREACTIVE` to *my_config.h* and make sure you have _arduinoFFT_ library downloaded and installed.
+### using latest _arduinoFFT_ library version 2.x
+The latest arduinoFFT release version should be used for audioreactive.
 
-Customised _arduinoFFT_ library for use with this usermod can be found at https://github.com/blazoncek/arduinoFFT.git
-
-### using latest (develop) _arduinoFFT_ library
-Alternatively, you can use the latest arduinoFFT development version.
-ArduinoFFT `develop` library is slightly more accurate, and slighly faster than our customised library, however also needs additional 2kB RAM.
-
-* `build_flags` = `-D USERMOD_AUDIOREACTIVE` `-D UM_AUDIOREACTIVE_USE_NEW_FFT`
-* `lib_deps`= `https://github.com/kosme/arduinoFFT#develop @ 1.9.2`
+* `build_flags` = `-D USERMOD_AUDIOREACTIVE -D sqrt_internal=sqrtf`
+* `lib_deps`= `kosme/arduinoFFT @ 2.0.1`
 
 ## Configuration
 
-All parameters are runtime configurable though some may require hard boot after change (I2S microphone or selected GPIOs).
+All parameters are runtime configurable. Some may require a hard reset after changing them (I2S microphone or selected GPIOs).
 
-If you want to define default GPIOs during compile time use the following addtional build_flags (default values in parentheses):
+If you want to define default GPIOs during compile time, use the following (default values in parentheses):
 
 - `-D SR_DMTYPE=x` : defines digital microphone type: 0=analog, 1=generic I2S (default), 2=ES7243 I2S, 3=SPH0645 I2S, 4=generic I2S with master clock, 5=PDM I2S
 - `-D AUDIOPIN=x`  : GPIO for analog microphone/AUX-in (36)
@@ -55,7 +48,12 @@ If you want to define default GPIOs during compile time use the following addtio
 - `-D ES7243_SDAPIN` : GPIO for I2C SDA pin on ES7243 microphone (-1)
 - `-D ES7243_SCLPIN` : GPIO for I2C SCL pin on ES7243 microphone (-1)
 
-**NOTE** Due to the fact that usermod uses I2S peripherial for analog audio sampling, use of analog *buttons* (i.e. potentiometers) is disabled while running this usermod with analog microphone.
+Other options:
+
+- `-D UM_AUDIOREACTIVE_ENABLE` : makes usermod default enabled (not the same as include into build option!)
+- `-D UM_AUDIOREACTIVE_DYNAMICS_LIMITER_OFF` : disables rise/fall limiter default
+
+**NOTE** I2S is used for analog audio sampling. Hence, the analog *buttons* (i.e. potentiometers) are disabled when running this usermod with an analog microphone.
 
 ### Advanced Compile-Time Options
 You can use the following additional flags in your `build_flags`
@@ -63,7 +61,7 @@ You can use the following additional flags in your `build_flags`
 * `-D SR_GAIN=x`     : Default "gain" setting (60)
 * `-D I2S_USE_RIGHT_CHANNEL`: Use RIGHT instead of LEFT channel (not recommended unless you strictly need this).
 * `-D I2S_USE_16BIT_SAMPLES`: Use 16bit instead of 32bit for internal sample buffers. Reduces sampling quality, but frees some RAM ressources (not recommended unless you absolutely need this).
-* `-D I2S_GRAB_ADC1_COMPLETELY`: Experimental: continously sample analog ADC microphone. Only effective on ESP32. WARNING this _will_ cause conflicts(lock-up) with any analogRead() call.
+* `-D I2S_GRAB_ADC1_COMPLETELY`: Experimental: continuously sample analog ADC microphone. Only effective on ESP32. WARNING this _will_ cause conflicts(lock-up) with any analogRead() call.
 * `-D MIC_LOGGER`     : (debugging) Logs samples from the microphone to serial USB. Use with serial plotter (Arduino IDE)
 * `-D SR_DEBUG`       : (debugging) Additional error diagnostics and debug info on serial USB.
 
